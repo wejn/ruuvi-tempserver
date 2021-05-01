@@ -1,0 +1,24 @@
+#!/bin/bash
+
+D=/var/log/svc/tempserver
+U=logs
+G=`id -g "$U" 2>/dev/null`
+
+if [ ".`id -u "$U" 2>/dev/null`" = "." ]; then
+        echo "User '$U' doesn't exist!"
+        exit 1
+fi
+
+if [ ".$G" = "." ]; then
+        echo "Wrong group: '$G'!"
+        exit 1
+fi
+
+if [ ! -d "$D" ]; then
+        mkdir -p "$D"
+        chown ":$G" "$D"
+        chmod g+w  "$D"
+        test ! -e main && ln -s "$D" main
+fi
+
+exec setuidgid "$U" multilog t s1048576 n5 "$D"
