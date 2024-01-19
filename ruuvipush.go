@@ -38,22 +38,38 @@ func main() {
 	ble.Scan(ctx, true, handler, filter)
 }
 
-func handler(a ble.Advertisement) {
-	raw, err := ruuvitag.ParseRAWv1(a.ManufacturerData())
-	if err == nil {
-		// fmt.Printf("[%s] RSSI: %3d: %+v\n", a.Addr(), a.RSSI(), raw)
-		resp, err := http.PostForm(apiurl, url.Values{
-			"id":          {a.Addr().String()},
-			"temperature": {strconv.FormatFloat(raw.Temperature, 'f', 6, 64)}})
+func postTemp(addr string, temp float64) error {
+	resp, err := http.PostForm(apiurl, url.Values{
+		"id":          {addr},
+		"temperature": {strconv.FormatFloat(temp, 'f', 6, 64)}})
 
-		if err != nil {
-			fmt.Printf("Failed to post: %v\n", err)
-		} else {
-			resp.Body.Close()
+	if err != nil {
+		resp.Body.Close()
+	}
+
+	return err
+}
+
+func handler(a ble.Advertisement) {
+	addr := a.Addr().String()
+	switch {
+	case ruuvitag.IsRAWv2(a.ManufacturerData()):
+		raw, err := ruuvitag.ParseRAWv2(a.ManufacturerData())
+		if err == nil {
+			if err := postTemp(addr, raw.Temperature); err != nil {
+				fmt.Printf("Failed to post: %v\n", err)
+			}
+		}
+	case ruuvitag.IsRAWv1(a.ManufacturerData()):
+		raw, err := ruuvitag.ParseRAWv1(a.ManufacturerData())
+		if err == nil {
+			if err := postTemp(addr, raw.Temperature); err != nil {
+				fmt.Printf("Failed to post: %v\n", err)
+			}
 		}
 	}
 }
 
 func filter(a ble.Advertisement) bool {
-	return ruuvitag.IsRAWv1(a.ManufacturerData())
+	return ruuvitag.IsRAWv1(a.ManufacturerData()) || ruuvitag.IsRAWv2(a.ManufacturerData())
 }
